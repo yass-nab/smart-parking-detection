@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Parking Slot Annotator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #1a1a1a; color: #eee; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+#sidebar { width: 260px; min-width: 260px; background: #222; padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+#sidebar h2 { font-size: 15px; color: #fff; }
+#instructions { font-size: 12px; color: #aaa; line-height: 1.6; }
+#instructions b { color: #7cf; }
+#stats { font-size: 13px; color: #ccc; background: #2a2a2a; padding: 8px; border-radius: 6px; }
+button { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+#btn-undo   { background: #555; color: #fff; }
+#btn-clear  { background: #8b2020; color: #fff; }
+#btn-save   { background: #1a7a3a; color: #fff; font-size: 14px; padding: 10px; }
+#btn-load   { background: #1a4a7a; color: #fff; }
+#slot-list  { font-size: 11px; color: #999; max-height: 300px; overflow-y: auto; }
+#slot-list div { padding: 2px 0; border-bottom: 1px solid #333; }
+#canvas-wrap { flex: 1; overflow: hidden; position: relative; cursor: crosshair; }
+canvas { display: block; }
+#hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.7); color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 13px; pointer-events: none; }
+input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>🅿 Slot Annotator</h2>
+  <div id="instructions">
+    <b>1.</b> Load your frame image<br>
+    <b>2.</b> Click 4 corners of a slot (clockwise from top-left)<br>
+    <b>3.</b> Press <b>SPACE</b> or click <b>Confirm</b> to save<br>
+    <b>4.</b> Repeat for all slots<br>
+    <b>5.</b> Click <b>Save JSON</b> to download<br><br>
+    <b>Scroll</b> to zoom · <b>Right-drag</b> to pan
+  </div>
+
+  <label for="file-input">
+    <button onclick="document.getElementById('file-input').click()" style="background:#444;color:#fff;width:100%">📂 Load frame image</button>
+  </label>
+  <input type="file" id="file-input" accept="image/*">
+
+  <div id="stats">Slots: <b id="slot-count">0</b> &nbsp;|&nbsp; Points: <b id="pt-count">0</b>/4</div>
+
+  <button id="btn-undo" onclick="undo()">↩ Undo last point</button>
+  <button onclick="confirmSlot()" style="background:#1a6a9a;color:#fff">✔ Confirm slot (SPACE)</button>
+  <button id="btn-clear" onclick="clearCurrent()">✖ Clear current points</button>
+  <button id="btn-save" onclick="saveJSON()">💾 Save slots.json</button>
+  <button id="btn-load" onclick="loadExisting()">📥 Load existing JSON</button>
+  <input type="file" id="json-input" accept=".json">
+
+  <div style="font-size:12px;color:#888;margin-top:4px">Saved slots:</div>
+  <div id="slot-list"></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+  <div id="hint">Load a frame image to start</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let img = null;
+let slots = [];
+let current = [];
+let scale = 1, offX = 0, offY = 0;
+let dragging = false, dragStart = null, dragOrigin = null;
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const url = URL.createObjectURL(file);
+  img = new Image();
+  img.onload = () => {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+    scale = Math.min(canvas.width / img.width, canvas.height / img.height) * 0.95;
+    offX = (canvas.width  - img.width  * scale) / 2;
+    offY = (canvas.height - img.height * scale) / 2;
+    document.getElementById('hint').textContent = 'Click 4 corners of a slot, then press SPACE';
+    render();
+  };
+  img.src = url;
+});
+
+document.getElementById('json-input').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => { slots = JSON.parse(t); updateList(); render(); });
+});
+
+function loadExisting() { document.getElementById('json-input').click(); }
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const mx = e.offsetX, my = e.offsetY;
+  offX = mx - (mx - offX) * factor;
+  offY = my - (my - offY) * factor;
+  scale *= factor;
+  render();
+}, { passive: false });
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 2 || e.button === 1) {
+    dragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    dragOrigin = { x: offX, y: offY };
+    return;
+  }
+  if (!img) return;
+  const ix = (e.offsetX - offX) / scale;
+  const iy = (e.offsetY - offY) / scale;
+  current.push([Math.round(ix), Math.round(iy)]);
+  updateStats();
+  render();
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (dragging) {
+    offX = dragOrigin.x + (e.clientX - dragStart.x);
+    offY = dragOrigin.y + (e.clientY - dragStart.y);
+    render();
+  }
+});
+
+canvas.addEventListener('mouseup', e => { if (e.button === 2 || e.button === 1) dragging = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); confirmSlot(); }
+  if (e.code === 'KeyZ' && e.ctrlKey) { e.preventDefault(); undo(); }
+});
+
+function confirmSlot() {
+  if (current.length !== 4) {
+    document.getElementById('hint').textContent = `Need 4 points — you have ${current.length}`;
+    return;
+  }
+  slots.push({ id: slots.length + 1, polygon: [...current] });
+  current = [];
+  updateList();
+  updateStats();
+  render();
+  document.getElementById('hint').textContent = `Slot ${slots.length} saved ✔  — click next slot`;
+}
+
+function undo() {
+  if (current.length > 0) { current.pop(); }
+  else if (slots.length > 0) { slots.pop(); updateList(); }
+  updateStats(); render();
+}
+
+function clearCurrent() { current = []; updateStats(); render(); }
+
+function updateStats() {
+  document.getElementById('slot-count').textContent = slots.length;
+  document.getElementById('pt-count').textContent = current.length;
+}
+
+function updateList() {
+  const el = document.getElementById('slot-list');
+  el.innerHTML = slots.slice(-30).reverse().map(s =>
+    `<div>#${s.id} — (${s.polygon[0]}) (${s.polygon[1]}) (${s.polygon[2]}) (${s.polygon[3]})</div>`
+  ).join('');
+  updateStats();
+}
+
+function saveJSON() {
+  const blob = new Blob([JSON.stringify(slots, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'slots.json'; a.click();
+}
+
+const COLORS = ['#00e87a','#ffcc00','#00bfff','#ff6b6b','#cc88ff'];
+
+function render() {
+  if (!img) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(offX, offY);
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, 0, 0);
+
+  // Draw saved slots
+  slots.forEach((s, i) => {
+    const pts = s.polygon;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+    ctx.closePath();
+    ctx.strokeStyle = '#00e87a';
+    ctx.lineWidth = 2 / scale;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,232,122,0.15)';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `${12/scale}px sans-serif`;
+    const cx = pts.reduce((a,p)=>a+p[0],0)/4;
+    const cy = pts.reduce((a,p)=>a+p[1],0)/4;
+    ctx.fillText('#'+s.id, cx-8/scale, cy+4/scale);
+  });
+
+  // Draw current points
+  current.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 5/scale, 0, Math.PI*2);
+    ctx.fillStyle = '#ffcc00';
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1/scale;
+    ctx.stroke();
+    if (i > 0) {
+      ctx.beginPath();
+      ctx.moveTo(current[i-1][0], current[i-1][1]);
+      ctx.lineTo(p[0], p[1]);
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2/scale;
+      ctx.setLineDash([5/scale, 3/scale]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+  if (current.length === 4) {
+    ctx.beginPath();
+    ctx.moveTo(current[3][0], current[3][1]);
+    ctx.lineTo(current[0][0], current[0][1]);
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 2/scale;
+    ctx.setLineDash([5/scale,3/scale]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,525 @@
+\documentclass[12pt,a4paper]{report}
+
+% ─── Encodage & langue ───────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% ─── Mise en page ────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=3cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ─── Typographie ─────────────────────────────────────────────────────────────
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ─── Graphiques & couleurs ───────────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage[dvipsnames,table]{xcolor}
+
+% ─── Tableaux ────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+
+% ─── Code source ─────────────────────────────────────────────────────────────
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{NavyBlue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{ForestGreen},
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!40},
+  backgroundcolor=\color{gray!5},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  xleftmargin=2em,
+  framexleftmargin=1.5em,
+  showstringspaces=false,
+  language=Python
+}
+
+% ─── Boîtes & encadrés ───────────────────────────────────────────────────────
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+% ─── Liens hypertexte ────────────────────────────────────────────────────────
+\usepackage[colorlinks=true, linkcolor=NavyBlue, urlcolor=NavyBlue, citecolor=NavyBlue]{hyperref}
+
+% ─── En-têtes / pieds de page ────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Système de Détection Intelligente de Stationnement}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ─── Diagrammes TikZ ─────────────────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+
+% ─── Numérotation ────────────────────────────────────────────────────────────
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+% ─── Macros couleurs ─────────────────────────────────────────────────────────
+\definecolor{myblue}{RGB}{30, 80, 160}
+\definecolor{mygreen}{RGB}{34, 139, 34}
+\definecolor{myred}{RGB}{180, 30, 30}
+\definecolor{myyellow}{RGB}{200, 160, 0}
+\definecolor{lightblue}{RGB}{220, 235, 255}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ─── Page de garde ───────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{1cm}
+
+  {\Huge\bfseries\color{myblue}
+    Système de Détection Intelligente\\[0.3em]
+    de Stationnement\par}
+
+  \vspace{0.6cm}
+  {\large\color{gray} Analyse de l'occupation des places de parking\\
+  par vision par ordinateur en temps réel\par}
+
+  \vspace{1.5cm}
+  \rule{0.8\linewidth}{1.5pt}
+  \vspace{1.5cm}
+
+  % ── Encadré vidéo de démonstration ──
+  \begin{tcolorbox}[
+    colback=lightblue,
+    colframe=myblue,
+    title={\bfseries Vidéo de Démonstration},
+    fonttitle=\large,
+    width=0.75\linewidth,
+    center,
+    boxrule=1pt,
+    arc=4pt
+  ]
+    \centering
+    \vspace{0.4cm}
+    {\large Lien vers la vidéo du parking~:}\\[0.6em]
+    \textbf{\large\color{myred}[ \hspace{6cm} ]}\\[0.3em]
+    {\small\color{gray}\itshape (insérer le lien ici)}
+    \vspace{0.4cm}
+  \end{tcolorbox}
+
+  \vspace{1.5cm}
+  \rule{0.8\linewidth}{1.5pt}
+
+  \vspace{1.5cm}
+  {\large
+    \begin{tabular}{rl}
+      \textbf{Technologie~:}  & OpenCV, NumPy, Python 3.13 \\[4pt]
+      \textbf{Méthode~:}      & Analyse de variance de texture (sans IA/GPU) \\[4pt]
+      \textbf{Résolution~:}   & 1920 $\times$ 1080 pixels \\[4pt]
+      \textbf{Capacité~:}     & 368 emplacements détectés en temps réel \\[4pt]
+      \textbf{Date~:}         & \today \\
+    \end{tabular}
+  }
+
+  \vfill
+  {\small\color{gray} Rapport technique — Usage interne}
+\end{titlepage}
+
+% ─── Table des matières ───────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Introduction}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Contexte et problématique}
+
+La gestion des espaces de stationnement représente un enjeu majeur dans les environnements urbains modernes. Le manque d'informations en temps réel sur la disponibilité des places entraîne des pertes de temps considérables et une augmentation du trafic inutile.
+
+Ce projet propose un \textbf{pipeline de vision par ordinateur} capable de détecter automatiquement l'état d'occupation de chaque emplacement de stationnement à partir d'une séquence vidéo aérienne, \textit{sans nécessiter de modèle d'apprentissage automatique ni de GPU}.
+
+\section{Objectifs}
+
+\begin{itemize}
+  \item Détecter en temps réel si chaque emplacement est \textcolor{mygreen}{\textbf{libre}}, \textcolor{myred}{\textbf{occupé}} ou en \textcolor{myyellow}{\textbf{transition}}.
+  \item Afficher des statistiques dynamiques par image (nombre de places libres/occupées et pourcentages).
+  \item Produire une vidéo annotée (MP4) et un aperçu animé (GIF) exploitables directement.
+  \item Offrir des outils d'annotation manuelle et de diagnostic pour faciliter l'adaptation à d'autres parkings.
+\end{itemize}
+
+\section{Périmètre du rapport}
+
+Ce rapport couvre l'architecture du système, le fonctionnement de l'algorithme de classification, la description des outils fournis, les résultats obtenus, ainsi que les pistes d'extension envisageables.
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Description du Système}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Vue d'ensemble}
+
+Le système se compose de quatre modules principaux~:
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.2cm,
+  box/.style={rectangle, draw=myblue, fill=lightblue, rounded corners=4pt,
+              text width=3.8cm, align=center, minimum height=1cm, font=\small\bfseries},
+  arr/.style={-{Stealth[length=6pt]}, thick, color=myblue}
+]
+  \node[box] (A) {Vidéo d'entrée\\(MP4/AVI/RTSP)};
+  \node[box, right=of A] (B) {Extraction des ROI\\(déformation perspective)};
+  \node[box, right=of B] (C) {Classifieur\\variance de texture};
+  \node[box, right=of C] (D) {Lissage temporel\\+ Rendu};
+
+  \draw[arr] (A) -- (B);
+  \draw[arr] (B) -- (C);
+  \draw[arr] (C) -- (D);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\section{Structure du projet}
+
+\begin{tcolorbox}[colback=gray!5, colframe=gray!40, title={Arborescence des fichiers}, fonttitle=\small\bfseries]
+\begin{verbatim}
+smart-parking-detection/
+│
+├── parking_detector.py     # Pipeline principal de détection (v6)
+├── diagnose.py             # Outil de diagnostic des pixels
+├── annotator.py            # Annotateur interactif d'emplacements
+├── slots_fixed.json        # Coordonnées corrigées des emplacements
+├── slots.json              # Coordonnées générées automatiquement
+├── output/
+│   ├── parking_detection.mp4   # Vidéo annotée haute résolution
+│   └── parking_detection.gif   # Aperçu animé partageable
+└── README.md
+\end{verbatim}
+\end{tcolorbox}
+
+\section{Dépendances logicielles}
+
+\begin{table}[h!]
+  \centering
+  \caption{Bibliothèques Python requises}
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Bibliothèque} & \textbf{Version minimale} & \textbf{Rôle} \\
+    \midrule
+    \texttt{opencv-python-headless} & $\geq$ 4.8 & Traitement vidéo et image \\
+    \texttt{numpy}                  & $\geq$ 1.24 & Calculs numériques \\
+    \texttt{pillow}                 & $\geq$ 10.0 & Manipulation d'images \\
+    \texttt{imageio}                & $\geq$ 2.31 & Export GIF \\
+    \texttt{scipy}                  & $\geq$ 1.10 & Traitements scientifiques \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection*{Installation}
+
+\begin{lstlisting}[language=bash, numbers=none]
+pip install opencv-python-headless numpy pillow imageio scipy
+\end{lstlisting}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Fonctionnement de l'Algorithme}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Pipeline de traitement}
+
+Le traitement de chaque image vidéo suit les étapes suivantes~:
+
+\begin{enumerate}
+  \item \textbf{Extraction des ROI} — chaque polygone d'emplacement est transformé en perspective vers un rectangle fixe de $80 \times 40$ pixels.
+  \item \textbf{Calcul des 5 caractéristiques} de texture sur la région normalisée.
+  \item \textbf{Classification} en trois états à partir d'un score $s \in [0, 1]$.
+  \item \textbf{Lissage temporel} pour éviter les changements d'état parasites.
+  \item \textbf{Rendu} des annotations colorées sur l'image et écriture dans les fichiers de sortie.
+\end{enumerate}
+
+\section{Caractéristiques de texture extraites}
+
+\begin{table}[h!]
+  \centering
+  \caption{Les 5 caractéristiques calculées par emplacement}
+  \begin{tabularx}{\textwidth}{clX}
+    \toprule
+    \textbf{\#} & \textbf{Caractéristique} & \textbf{Description} \\
+    \midrule
+    1 & \texttt{std\_V}             & Écart-type de la brillance (canal V de l'espace HSV) \\
+    2 & Contraste spatial           & Analyse quadrantielle — compare les sous-régions entre elles \\
+    3 & Fraction de zones sombres   & Proportion de pixels sous un seuil de luminosité \\
+    4 & Énergie de gradient Sobel   & Détection des contours — mesure la netteté des bords \\
+    5 & Ratio de zones claires      & Proportion de pixels très lumineux (reflets de fenêtres, carrosseries) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Règles de classification}
+
+Les seuils de décision sont définis comme suit~:
+
+\begin{tcolorbox}[colback=gray!5, colframe=myblue, title={Seuils de classification}, fonttitle=\bfseries]
+\[
+  \text{État} =
+  \begin{cases}
+    \textcolor{myred}{\textbf{OCCUPÉ}}     & \text{si } s \geq 0{,}50 \\
+    \textcolor{myyellow}{\textbf{TRANSITION}} & \text{si } 0{,}28 \leq s < 0{,}50 \\
+    \textcolor{mygreen}{\textbf{LIBRE}}    & \text{si } s < 0{,}28
+  \end{cases}
+\]
+\end{tcolorbox}
+
+\section{Pourquoi la variance de texture~?}
+
+Une analyse diagnostique des images aériennes de ce parking a révélé que la brillance moyenne (canal V) et la saturation sont \textbf{quasi identiques} entre l'asphalte vide et le toit des véhicules (environ 121–122 dans les deux cas). Le seul signal discriminant fiable est la \textbf{variance locale de texture}~:
+
+\begin{itemize}
+  \item L'asphalte vide est \textbf{lisse et uniforme} ($\sigma_V \approx 20$–$28$).
+  \item Les véhicules présentent des \textbf{panneaux, vitres et ombres} créant des motifs de luminosité irréguliers ($\sigma_V \approx 40$–$55$).
+\end{itemize}
+
+\section{Lissage temporel}
+
+Un mécanisme de lissage temporel supprime les changements d'état rapides et non fiables. Si la nouvelle confiance est inférieure à $0{,}30$, l'état précédent est maintenu pour éviter les effets de scintillement dans la vidéo de sortie.
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Outils Fournis}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{parking\_detector.py — Pipeline principal}
+
+\subsection{Options en ligne de commande}
+
+\begin{table}[h!]
+  \centering
+  \caption{Arguments CLI du détecteur principal}
+  \begin{tabularx}{\textwidth}{llX}
+    \toprule
+    \textbf{Option} & \textbf{Défaut} & \textbf{Description} \\
+    \midrule
+    \texttt{-{}-video}   & \texttt{parking\_1920\_1080.mp4} & Chemin vers la vidéo source \\
+    \texttt{-{}-slots}   & \texttt{slots.json}             & Fichier de coordonnées des emplacements \\
+    \texttt{-{}-frames}  & \texttt{120}                    & Nombre d'images à traiter \\
+    \texttt{-{}-out-gif} & \texttt{parking\_detection.gif} & Nom du fichier GIF de sortie \\
+    \texttt{-{}-out-mp4} & \texttt{parking\_detection.mp4} & Nom du fichier MP4 de sortie \\
+    \texttt{-{}-annotate}& désactivé                       & Lance l'annotateur interactif \\
+    \texttt{-{}-debug}   & désactivé                       & Affiche les scores par emplacement (image 1) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Exemples d'utilisation}
+
+\begin{lstlisting}[language=bash, numbers=none, caption={Exécution standard}]
+python parking_detector.py --video parking_1920_1080.mp4 \
+    --slots slots_fixed.json --frames 120
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash, numbers=none, caption={Exécution avec débogage}]
+python parking_detector.py --video parking_1920_1080.mp4 \
+    --slots slots_fixed.json --frames 120 --debug
+\end{lstlisting}
+
+\section{diagnose.py — Outil de diagnostic}
+
+Cet outil analyse les statistiques de pixels de votre vidéo afin de comprendre quels signaux (brillance, saturation, variance de texture) sont exploitables pour votre séquence spécifique.
+
+\medskip
+\noindent\textbf{Sorties générées~:}
+\begin{itemize}
+  \item Statistiques HSV moyennes par emplacement (H, S, V, std\_V, densité de contours).
+  \item Positions des bandes de voie détectées.
+  \item Comparaison emplacements vs voies.
+  \item Image de débogage \texttt{debug\_frame.png} (contours jaunes = emplacements, cyan = voies).
+\end{itemize}
+
+\begin{lstlisting}[language=bash, numbers=none]
+python diagnose.py --video parking_1920_1080.mp4 \
+    --slots slots_fixed.json
+\end{lstlisting}
+
+\section{annotator.py — Annotation interactive des emplacements}
+
+Un outil graphique permettant de dessiner manuellement les polygones d'emplacements ou de corriger des annotations existantes.
+
+\begin{table}[h!]
+  \centering
+  \caption{Raccourcis clavier de l'annotateur}
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Action} & \textbf{Effet} \\
+    \midrule
+    Clic gauche           & Placer un coin (4 par emplacement) \\
+    ESPACE                & Valider l'emplacement (après 4 points) \\
+    CTRL+Z                & Annuler le dernier point ou emplacement \\
+    S                     & Sauvegarder sans quitter \\
+    Q / Échap             & Sauvegarder et quitter \\
+    Molette de défilement & Zoom avant/arrière \\
+    Clic molette + glisser& Panoramique \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\noindent La sauvegarde automatique intervient tous les 10 emplacements confirmés. Le résultat est écrit dans \texttt{slots\_new.json} par défaut.
+
+\section{Format JSON des emplacements}
+
+Chaque emplacement est défini par un identifiant unique et un polygone de 4 points (sens horaire depuis le coin supérieur gauche)~:
+
+\begin{lstlisting}[language=Python, numbers=none, caption={Exemple de fichier slots.json}]
+[
+  {
+    "id": 1,
+    "polygon": [[88, 103], [163, 103], [163, 130], [88, 130]]
+  },
+  {
+    "id": 2,
+    "polygon": [[88, 130], [163, 130], [163, 163], [88, 163]]
+  }
+]
+\end{lstlisting}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Résultats}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Exemple de sortie console}
+
+L'exécution sur 120 images d'une vidéo de 849 images au total produit la sortie suivante~:
+
+\begin{tcolorbox}[colback=black!90, coltext=green!70, fontupper=\ttfamily\small,
+                  title={Sortie console}, colframe=gray!40, fonttitle=\bfseries\color{white}]
+Loaded 368 slots from slots\_fixed.json\\
+Video: 1920x1080 @ 30.0 fps  (849 frames total)\\
+Processing up to 120 frames (every 2nd)...\\
+~\\
+  Frame   20 | Occ: 87  Emp:241  Trans: 40\\
+  Frame   40 | Occ: 89  Emp:239  Trans: 40\\
+  Frame   60 | Occ: 91  Emp:238  Trans: 39\\
+  ...\\
+~\\
+MP4 -> output\textbackslash parking\_detection.mp4\\
+GIF -> output\textbackslash parking\_detection.gif\\
+Done. Processed 120 frames, 368 slots.
+\end{tcolorbox}
+
+\section{Annotation visuelle}
+
+Chaque image de la vidéo de sortie est annotée en temps réel selon le code couleur suivant~:
+
+\begin{table}[h!]
+  \centering
+  \caption{Code couleur des emplacements détectés}
+  \begin{tabular}{ccl}
+    \toprule
+    \textbf{Couleur} & \textbf{Symbole} & \textbf{Signification} \\
+    \midrule
+    \cellcolor{mygreen!30}Vert   & \textcolor{mygreen}{\rule{1em}{1em}} & Emplacement libre \\
+    \cellcolor{myred!30}Rouge    & \textcolor{myred}{\rule{1em}{1em}}   & Emplacement occupé \\
+    \cellcolor{myyellow!40}Jaune & \textcolor{myyellow}{\rule{1em}{1em}} & Transition (arrivée ou départ) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Un \textbf{panneau de statistiques} en haut à gauche de chaque image affiche en temps réel les comptages et pourcentages d'occupation.
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Résolution des Problèmes}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Erreurs courantes et solutions}
+
+\begin{tcolorbox}[colback=myred!5, colframe=myred!60, title={\texttt{AttributeError: module 'cv2' has no attribute 'VideoCapture'}}, fonttitle=\small\bfseries, breakable]
+Plusieurs paquets OpenCV incompatibles sont installés simultanément. Résolution~:
+\begin{lstlisting}[language=bash, numbers=none]
+pip uninstall opencv-python opencv-python-headless \
+    opencv-contrib-python -y
+pip install opencv-python-headless
+\end{lstlisting}
+\end{tcolorbox}
+
+\vspace{0.5em}
+
+\begin{tcolorbox}[colback=myred!5, colframe=myred!60, title={Tous les emplacements affichés comme OCCUPÉS}, fonttitle=\small\bfseries, breakable]
+\begin{enumerate}
+  \item Exécuter \texttt{diagnose.py} et vérifier la ligne \texttt{Avg slot vs lane V diff}.
+  \item Si le différentiel est faible, la référence aux voies n'est pas exploitable — le classifieur de texture est la bonne approche.
+  \item Lancer avec \texttt{-{}-debug} et ajuster les seuils \texttt{OCCUPIED\_THRESH} et \texttt{EMPTY\_THRESH} dans \texttt{parking\_detector.py}.
+\end{enumerate}
+\end{tcolorbox}
+
+\vspace{0.5em}
+
+\begin{tcolorbox}[colback=myred!5, colframe=myred!60, title={Emplacements couvrant les voies de circulation}, fonttitle=\small\bfseries]
+Les coordonnées de \texttt{slots.json} ne correspondent pas à la vidéo. Utiliser \texttt{slots\_fixed.json} ou ré-exécuter le script de cartographie avec une nouvelle image \texttt{frame0.png}.
+\end{tcolorbox}
+
+\vspace{0.5em}
+
+\begin{tcolorbox}[colback=myred!5, colframe=myred!60, title={\texttt{ERROR: slots file not found}}, fonttitle=\small\bfseries]
+S'assurer que \texttt{slots\_fixed.json} se trouve dans le même dossier que \texttt{parking\_detector.py}, et non dans le sous-dossier \texttt{output/}.
+\end{tcolorbox}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Extensions et Améliorations}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\section{Intégration d'un modèle YOLOv8}
+
+Pour une précision de détection supérieure, il est possible de remplacer le classifieur de texture par un modèle de deep learning~:
+
+\begin{lstlisting}[caption={Intégration YOLOv8 (classe 2 = voiture dans COCO)}]
+from ultralytics import YOLO
+model = YOLO("yolov8n.pt")
+
+def classify(self, roi, debug=False):
+    results = model(roi, verbose=False)
+    for box in results[0].boxes:
+        if int(box.cls) == 2:  # classe 2 = voiture (COCO)
+            return "OCCUPIED", float(box.conf), 1.0
+    return "EMPTY", 0.95, 0.0
+\end{lstlisting}
+
+\section{Utilisation avec une caméra en direct ou un flux RTSP}
+
+\begin{lstlisting}[language=bash, numbers=none]
+# Caméra locale (index 0)
+python parking_detector.py --video 0
+
+# Flux IP (RTSP)
+python parking_detector.py --video rtsp://192.168.1.100/stream
+\end{lstlisting}
+
+\section{Traitement d'une vidéo plus longue}
+
+\begin{lstlisting}[language=bash, numbers=none]
+python parking_detector.py --video parking_1920_1080.mp4 \
+    --slots slots_fixed.json --frames 500
+\end{lstlisting}
+
+% ═════════════════════════════════════════════════════════════════════════════
+\chapter{Conclusion}
+% ═════════════════════════════════════════════════════════════════════════════
+
+Ce projet démontre qu'une détection robuste de l'occupation des places de stationnement est réalisable \textbf{sans modèle d'apprentissage automatique ni matériel GPU}, à condition d'identifier et d'exploiter le bon signal discriminant — ici la variance de texture locale dans l'espace HSV.
+
+Le pipeline traite en temps réel 368 emplacements sur une vidéo 1920×1080 pixels, génère des sorties annotées directement exploitables, et propose des outils complémentaires (diagnostic, annotation manuelle) pour faciliter l'adaptation à d'autres configurations de parkings.
+
+Les perspectives d'amélioration incluent l'intégration optionnelle d'un modèle YOLOv8 pour les cas difficiles, la compatibilité avec des flux RTSP pour le déploiement en conditions réelles, et le développement d'un tableau de bord web pour la visualisation centralisée des données d'occupation.
+
+\vspace{1cm}
+\noindent\rule{\linewidth}{0.4pt}
+\begin{center}
+  {\small Rapport généré à partir du projet \textit{Smart Parking Detection System}.\\
+  Construit avec OpenCV, NumPy et Python.\\
+  Classifieur calibré sur analyse diagnostique de séquences aériennes 1920×1080.}
+\end{center}
+
+\end{document}
